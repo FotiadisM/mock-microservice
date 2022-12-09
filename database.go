@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	userv1 "github.com/findit-it/users-svc/api/user/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrUserNotFound      = status.Error(codes.NotFound, "user not found")
+	ErrUserAlreadyExists = status.Error(codes.AlreadyExists, "user already exists")
 )
 
 type Database interface {

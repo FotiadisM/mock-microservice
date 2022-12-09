@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package user.v1;
 
-import "google/type/datetime.proto";
 import "google/type/phone_number.proto";
 
 message User {
@@ -10,7 +9,7 @@ message User {
   string first_name = 2;
   string last_name = 3;
   string email = 4;
-  google.type.DateTime created = 5;
+  int64 created = 5;
   google.type.PhoneNumber phone_number = 6;
   string short_note = 7;
 }
