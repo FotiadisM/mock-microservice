@@ -2,19 +2,21 @@ syntax = "proto3";
 
 package user.v1;
 
+import "google/api/annotations.proto";
 import "google/type/phone_number.proto";
 
 message User {
+  // user's uuid
   string id = 1;
   string first_name = 2;
   string last_name = 3;
   string email = 4;
   int64 created = 5;
   google.type.PhoneNumber phone_number = 6;
-  string short_note = 7;
 }
 
 message GetUserRequest {
+  // user's uuid
   string id = 1;
 }
 
@@ -23,14 +25,53 @@ message GetUserResponse {
 }
 
 message CreateUserRequest {
-  User user = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  optional google.type.PhoneNumber phone_number = 6;
 }
 
 message CreateUserResponse {
   User user = 1;
 }
 
+message UpdateUserRequest {
+  // user uuid
+  string id = 1;
+  optional string first_name = 2;
+  optional string last_name = 3;
+  optional string email = 4;
+  optional google.type.PhoneNumber phone_number = 6;
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}
+
+message DeleteUserRequest {
+  // user uuid
+  string id = 1;
+}
+
+message DeleteUserResponse {}
+
 service UserService {
-  rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
-  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {}
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (google.api.http) = {get: "/v1/users/{id}"};
+  }
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option (google.api.http) = {
+      post: "/v1/users"
+      body: "*"
+    };
+  }
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {
+    option (google.api.http) = {
+      patch: "/v1/users/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
+    option (google.api.http) = {delete: "/v1/users/{id}"};
+  }
 }

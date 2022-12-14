@@ -14,11 +14,6 @@ var (
 	ErrUserAlreadyExists = status.Error(codes.AlreadyExists, "user already exists")
 )
 
-type Database interface {
-	GetUser(ctx context.Context, id string) (*userv1.User, error)
-	StoreUser(ctx context.Context, user *userv1.User) error
-}
-
 type inMemoryDB struct {
 	mu    sync.Mutex
 	users map[string]*userv1.User
@@ -28,6 +23,10 @@ func newInMemoryDB() *inMemoryDB {
 	return &inMemoryDB{
 		users: make(map[string]*userv1.User),
 	}
+}
+
+func (db *inMemoryDB) Ping(_ context.Context) error {
+	return nil
 }
 
 func (db *inMemoryDB) GetUser(_ context.Context, id string) (*userv1.User, error) {

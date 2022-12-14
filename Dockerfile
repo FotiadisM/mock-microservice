@@ -1,0 +1,15 @@
+FROM golang:1.18-alpine3.17 as build
+
+ENV GOOS linux
+ENV CGO_ENABLED 0
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o app
+
+FROM alpine:3.17
+RUN apk add --no-cache ca-certificates
+COPY --from=build app .
+ENTRYPOINT ["./app"]

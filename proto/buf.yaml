@@ -1,5 +1,4 @@
 version: v1
-name: buf.build/findit-it/users-svc
 deps:
   - buf.build/googleapis/googleapis
 breaking:
