@@ -5,19 +5,24 @@ managed:
     default: github.com/findit-it/user-svc/api
     except:
       - buf.build/googleapis/googleapis
+      - buf.build/envoyproxy/protoc-gen-validate
 plugins:
   - name: go
     out: api
-    opt: paths=source_relative
+    opt:
+      - paths=source_relative
   - name: go-grpc
     out: api
     opt:
       - paths=source_relative
+  - name: validate
+    out: api
+    opt:
+      - paths=source_relative
+      - lang=go
   - name: grpc-gateway
     out: api
     opt:
       - paths=source_relative
   - name: openapiv2
-    out: api/doc
-  - name: doc
     out: api/doc

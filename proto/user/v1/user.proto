@@ -4,10 +4,11 @@ package user.v1;
 
 import "google/api/annotations.proto";
 import "google/type/phone_number.proto";
+import "validate/validate.proto";
 
 message User {
   // user's uuid
-  string id = 1;
+  string id = 1 [(validate.rules).string.uuid = true];
   string first_name = 2;
   string last_name = 3;
   string email = 4;

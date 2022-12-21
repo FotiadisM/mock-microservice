@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	"os"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -16,26 +14,29 @@ import (
 )
 
 var (
-	grpc_addr = flag.String("grpc_addr", ":8080", "grpc listening address")
-	http_addr = flag.String("http_addr", ":9090", "http listening address")
+	grpc_addr string
+	http_addr string
+	debug     bool
 )
 
-func main() {
-	flag.Parse()
+func init() {
+	flag.StringVar(&grpc_addr, "grpc_addr", ":8080", "grpc listening address")
+	flag.StringVar(&http_addr, "http_addr", ":9090", "http listening address")
+	flag.BoolVar(&debug, "debug", false, "debug mode")
 
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	flag.Parse()
+}
+
+func main() {
+	logger := zap.Must(zap.NewProduction())
 
 	db := newInMemoryDB()
 	svc := service.NewService(db)
 
 	serverConfig := server.NewDefaultConfig(logger, svc)
-	serverConfig.GrpcAddr = *grpc_addr
-	serverConfig.HttpAddr = *http_addr
-	serverConfig.Reflection = true
+	serverConfig.GrpcAddr = grpc_addr
+	serverConfig.HttpAddr = http_addr
+	serverConfig.Reflection = debug
 	server, err := serverConfig.Build()
 	if err != nil {
 		logger.Fatal("failed to build server", zap.Error(err))

@@ -11,18 +11,21 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/findit-it/users-svc/pkg/grpc/health"
-	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	grpcopenmetrics "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	grpcopentracing "github.com/grpc-ecosystem/go-grpc-middleware/providers/opentracing/v2"
+	grpczap "github.com/grpc-ecosystem/go-grpc-middleware/providers/zap/v2"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/tracing"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+
+	"github.com/findit-it/users-svc/pkg/grpc/health"
 )
 
 type Server interface {
@@ -32,59 +35,58 @@ type Server interface {
 }
 
 type Config struct {
-	GrpcAddr                string
-	HttpAddr                string
-	Reflection              bool
-	HealthServer            grpc_health_v1.HealthServer
-	Logger                  *zap.Logger
-	Options                 []grpc.ServerOption
-	TracingOptions          []grpc_opentracing.Option
-	MetricsCounterOptions   []grpc_prometheus.CounterOption
-	MetricsEnableHistograms bool
-	MetricsHistogramOptions []grpc_prometheus.HistogramOption
-	StreamInterceptors      []grpc.StreamServerInterceptor
-	UnaryInterceptors       []grpc.UnaryServerInterceptor
-	MuxOptions              []runtime.ServeMuxOption
+	GrpcAddr     string
+	HttpAddr     string
+	Reflection   bool
+	Logger       *zap.Logger
+	HealthServer grpc_health_v1.HealthServer
+	Options      []grpc.ServerOption
+
+	LoggingOptions  []logging.Option
+	TracingOptions  []grpcopentracing.Option
+	MetricsOptions  []grpcopenmetrics.ServerMetricsOption
+	Recoveryoptions []recovery.Option
+	MuxOptions      []runtime.ServeMuxOption
+
+	StreamInterceptors []grpc.StreamServerInterceptor
+	UnaryInterceptors  []grpc.UnaryServerInterceptor
 }
 
 func NewDefaultConfig(logger *zap.Logger, hs grpc_health_v1.HealthServer) *Config {
 	return &Config{
-		GrpcAddr:                ":8080",
-		HttpAddr:                ":9090",
-		Reflection:              false,
-		HealthServer:            hs,
-		Logger:                  logger,
-		Options:                 []grpc.ServerOption{},
-		TracingOptions:          []grpc_opentracing.Option{},
-		MetricsCounterOptions:   []grpc_prometheus.CounterOption{},
-		MetricsEnableHistograms: false,
-		MetricsHistogramOptions: []grpc_prometheus.HistogramOption{},
-		StreamInterceptors:      []grpc.StreamServerInterceptor{},
-		UnaryInterceptors:       []grpc.UnaryServerInterceptor{},
-		MuxOptions:              []runtime.ServeMuxOption{},
+		GrpcAddr:           ":8080",
+		HttpAddr:           ":9090",
+		Reflection:         false,
+		Logger:             logger,
+		HealthServer:       hs,
+		Options:            []grpc.ServerOption{},
+		LoggingOptions:     []logging.Option{},
+		TracingOptions:     []grpcopentracing.Option{},
+		MetricsOptions:     []grpcopenmetrics.ServerMetricsOption{},
+		Recoveryoptions:    []recovery.Option{},
+		MuxOptions:         []runtime.ServeMuxOption{},
+		StreamInterceptors: []grpc.StreamServerInterceptor{},
+		UnaryInterceptors:  []grpc.UnaryServerInterceptor{},
 	}
 }
 
 func (c *Config) Build() (Server, error) {
-	serverMetrics := grpc_prometheus.NewServerMetrics(c.MetricsCounterOptions...)
-	if c.MetricsEnableHistograms {
-		serverMetrics.EnableHandlingTimeHistogram(c.MetricsHistogramOptions...)
-	}
+	serverMetrics := grpcopenmetrics.NewServerMetrics(c.MetricsOptions...)
 
 	ui := []grpc.UnaryServerInterceptor{
-		grpc_ctxtags.UnaryServerInterceptor(),
-		grpc_zap.UnaryServerInterceptor(c.Logger),
-		grpc_opentracing.UnaryServerInterceptor(c.TracingOptions...),
-		serverMetrics.UnaryServerInterceptor(),
-		grpc_recovery.UnaryServerInterceptor(),
+		tracing.UnaryServerInterceptor(grpcopentracing.InterceptorTracer(c.TracingOptions...)),
+		grpcopenmetrics.UnaryServerInterceptor(serverMetrics),
+		logging.UnaryServerInterceptor(grpczap.InterceptorLogger(c.Logger), c.LoggingOptions...),
+		recovery.UnaryServerInterceptor(c.Recoveryoptions...),
+		validator.UnaryServerInterceptor(false),
 	}
 	ui = append(ui, c.UnaryInterceptors...)
 	si := []grpc.StreamServerInterceptor{
-		grpc_ctxtags.StreamServerInterceptor(),
-		grpc_zap.StreamServerInterceptor(c.Logger),
-		grpc_opentracing.StreamServerInterceptor(c.TracingOptions...),
-		serverMetrics.StreamServerInterceptor(),
-		grpc_recovery.StreamServerInterceptor(),
+		tracing.StreamServerInterceptor(grpcopentracing.InterceptorTracer(c.TracingOptions...)),
+		grpcopenmetrics.StreamServerInterceptor(serverMetrics),
+		logging.StreamServerInterceptor(grpczap.InterceptorLogger(c.Logger), c.LoggingOptions...),
+		recovery.StreamServerInterceptor(c.Recoveryoptions...),
+		validator.StreamServerInterceptor(false),
 	}
 	si = append(si, c.StreamInterceptors...)
 	opts := append(c.Options,
@@ -127,7 +129,7 @@ type server struct {
 	grpcserver    *grpc.Server
 	listener      net.Listener
 	httpserver    *http.Server
-	serverMetrics *grpc_prometheus.ServerMetrics
+	serverMetrics *grpcopenmetrics.ServerMetrics
 	mux           *runtime.ServeMux
 }
 
