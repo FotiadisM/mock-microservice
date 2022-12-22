@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"log"
+	"os"
+	"strings"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -20,15 +23,27 @@ var (
 )
 
 func init() {
-	flag.StringVar(&grpc_addr, "grpc_addr", ":8080", "grpc listening address")
-	flag.StringVar(&http_addr, "http_addr", ":9090", "http listening address")
+	flag.StringVar(&grpc_addr, "grpc-addr", ":8080", "grpc listening address")
+	flag.StringVar(&http_addr, "http-addr", ":9090", "http listening address")
 	flag.BoolVar(&debug, "debug", false, "debug mode")
 
+	flag.VisitAll(func(f *flag.Flag) {
+		name := strings.ToUpper(strings.Replace(f.Name, "-", "_", -1))
+		if value, ok := os.LookupEnv(name); ok {
+			if err := f.Value.Set(value); err != nil {
+				log.Fatalf("failed to set flag value err=%v", err)
+			}
+		}
+	})
 	flag.Parse()
 }
 
 func main() {
-	logger := zap.Must(zap.NewProduction())
+	config := zap.NewProductionConfig()
+	if debug {
+		config = zap.NewDevelopmentConfig()
+	}
+	logger := zap.Must(config.Build())
 
 	db := newInMemoryDB()
 	svc := service.NewService(db)

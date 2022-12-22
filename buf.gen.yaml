@@ -24,5 +24,3 @@ plugins:
     out: api
     opt:
       - paths=source_relative
-  - name: openapiv2
-    out: api/doc
