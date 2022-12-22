@@ -22,16 +22,20 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: fmt
-fmt: gofumpt ## Run gofumpt against code.
-	@$(GOFUMPT) -w .
+fmt: tools ## Run gofumpt against code.
+	@gofumpt -w .
 
 .PHONY: vet
 vet: ## Run go vet against code.
 	@go vet ./...
 
 .PHONY: lint
-lint: golangci ## Run golangci-lint against code.
+lint: golangci-lint ## Run golangci-lint against code.
 	@$(GOLANGCILINT) run
+
+.PHONY: tools
+tools: ## Install development tools
+	@cat tools.go | grep '_' | awk -F '"' '{print $$2}' | xargs go install
 
 ##@ Build
 
@@ -48,18 +52,18 @@ docker-build: ## Run docker build
 ##@ Protobuf
 
 .PHONY: proto-format
-proto-format: ## Format protobuf file with buf
+proto-format: buf ## Format protobuf files with buf
 	@buf format -w
 
 .PHONY: proto-lint
-proto-lint: ## Lint protobuf file with buf
+proto-lint: buf ## Lint protobuf files with buf
 	@buf lint ./proto
 
 .PHONY: proto-gen
-proto-gen: ## Generate protobuf files with buf
+proto-gen: buf ## Generate protobuf files with buf
 	@buf generate ./proto
 
-##@ Build Dependencies
+##@ Other tools
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -67,21 +71,22 @@ $(LOCALBIN):
 	@mkdir -p $(LOCALBIN)
 
 ## Tool Binaries
-GOFUMPT ?= $(LOCALBIN)/gofumpt
 GOLANGCILINT ?= $(LOCALBIN)/golangci-lint
+BUF ?= $(LOCALBIN)/buf
 
 ## Tool Versions
-GOFUMPT_VERSION ?= v0.3.1
-GOLANGCILINT_VERSION ?= v1.49.0
+GOLANGCILINT_VERSION ?= v1.50.1
+BUF_VERSION ?= v1.11.0
 
-.PHONY: gofumpt
-gofumpt: $(GOFUMPT) ## Download gofumpt locally if necessary.
-$(GOFUMPT): | $(LOCALBIN)
-	@GOBIN=$(LOCALBIN) go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION)
-
-.PHONY: golangci
-golangci: | $(LOCALBIN) ## Download golangci-lint locally if necessary.
+.PHONY: golangci-lint
+golangci-lint: $(GOLANGCILINT) ## Download golangci-lint locally if necessary.
+$(GOLANGCILINT): | $(LOCALBIN)
 	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(LOCALBIN) $(GOLANGCILINT_VERSION)
+
+.PHONY: buf
+buf: $(BUF) ## Download buf locally if necessary.
+$(BUF): | $(LOCALBIN)
+	@curl -sSfL "https://github.com/bufbuild/buf/releases/download/${BUF_VERSION}/buf-$(shell uname -s)-$(shell uname -m)" -o "$@" && chmod +x "$@"
 
 ##@ Clean
 
